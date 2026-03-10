@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/sonner';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useGemini } from '@/hooks/useGemini';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { CollectionManager } from '@/sections/CollectionManager';
 import { DialogueAssistant } from '@/sections/DialogueAssistant';
 import { SceneManager } from '@/sections/SceneManager';
@@ -29,6 +30,7 @@ function App() {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const {
     state,
@@ -371,7 +373,7 @@ function App() {
         </div>
       </nav>
 
-      <Toaster />
+      <Toaster position={isMobile ? 'top-center' : 'bottom-right'} />
     </div>
   );
 }

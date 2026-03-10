@@ -47,7 +47,16 @@ function App() {
     addVocabularyQuery,
   } = useAppStore();
 
-  const { provider, setProvider, apiKey, saveApiKey, clearApiKey, testConnection } = useGemini();
+  const { 
+    provider, 
+    setProvider, 
+    apiKey, 
+    isFromEnv,
+    saveApiKey, 
+    clearApiKey, 
+    testConnection,
+    generateText 
+  } = useGemini();
 
   const autoSelectTag = useCallback(
     async (text: string): Promise<{ scene: Scene; tag: Tag }> => {
@@ -81,33 +90,13 @@ function App() {
           return suggestTagByHeuristic();
         }
 
-        if (provider === 'gemini') {
-          const { GoogleGenerativeAI } = await import('@google/generative-ai');
-          const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-          const result = await model.generateContent(prompt);
-          return normalize(result.response.text().split('\n')[0] || '');
-        }
-
-        const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.2,
-          }),
-        });
-
-        if (!res.ok) {
+        try {
+          const text = await generateText(prompt);
+          return normalize(text.split('\n')[0] || '');
+        } catch (err) {
+          console.error('AI tag generation failed:', err);
           return suggestTagByHeuristic();
         }
-        const data = (await res.json()) as any;
-        const content = data?.choices?.[0]?.message?.content;
-        return normalize(String(content || '').split('\n')[0] || '');
       };
 
       const suggested = (await suggestTagByAI()) || suggestTagByHeuristic();
@@ -174,8 +163,8 @@ function App() {
           <DialogueAssistant
             selectedScene={selectedScene}
             selectedTag={selectedTag}
-            provider={provider}
             apiKey={apiKey}
+            generateText={generateText}
             customStyles={state.customStyles}
             onAutoSelectTag={autoSelectTag}
             onAddCollection={handleAddCollection}
@@ -186,8 +175,8 @@ function App() {
       case 'vocabulary':
         return (
           <VocabularyLookup
-            provider={provider}
             apiKey={apiKey}
+            generateText={generateText}
             onAddVocabulary={handleAddVocabulary}
             onAddCollection={handleAddCollection}
           />
@@ -206,6 +195,7 @@ function App() {
             provider={provider}
             onSetProvider={setProvider}
             apiKey={apiKey}
+            isFromEnv={isFromEnv}
             onSaveApiKey={saveApiKey}
             onClearApiKey={clearApiKey}
             onTestConnection={testConnection}

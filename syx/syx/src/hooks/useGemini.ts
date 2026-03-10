@@ -16,13 +16,20 @@ const builtInStylePrompts: Record<string, string> = {
 export function useGemini() {
   const [provider, setProviderState] = useState<AIProvider>(() => {
     const stored = localStorage.getItem(PROVIDER_STORAGE_KEY);
-    return stored === 'deepseek' ? 'deepseek' : 'gemini';
+    if (stored === 'deepseek' || stored === 'gemini') {
+      return stored as AIProvider;
+    }
+    // 默认从环境变量读取，如果没有则默认为 deepseek
+    const envProvider = import.meta.env.VITE_AI_PROVIDER;
+    return (envProvider === 'gemini' ? 'gemini' : 'deepseek') as AIProvider;
   });
+
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
-    return localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '';
+    return localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || import.meta.env.VITE_GEMINI_API_KEY || '';
   });
+
   const [deepseekApiKey, setDeepseekApiKey] = useState<string>(() => {
-    return localStorage.getItem(DEEPSEEK_API_KEY_STORAGE_KEY) || '';
+    return localStorage.getItem(DEEPSEEK_API_KEY_STORAGE_KEY) || import.meta.env.VITE_DEEPSEEK_API_KEY || '';
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -294,17 +301,24 @@ EXAMPLE2_TRANS: [chinese translation]`;
     }
   }, [apiKey, generateText]);
 
+  const isFromEnv = provider === 'gemini' 
+    ? !localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) && !!import.meta.env.VITE_GEMINI_API_KEY
+    : !localStorage.getItem(DEEPSEEK_API_KEY_STORAGE_KEY) && !!import.meta.env.VITE_DEEPSEEK_API_KEY;
+
   return {
     provider,
     setProvider,
     apiKey,
-    isLoading,
-    error,
+    isFromEnv,
+    geminiApiKey,
+    deepseekApiKey,
     saveApiKey,
     clearApiKey,
+    isLoading,
+    error,
+    generateText,
     generateDialogueResponses,
     lookupVocabulary,
     testConnection,
-    getStyleName,
   };
 }

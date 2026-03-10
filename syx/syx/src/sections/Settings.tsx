@@ -29,6 +29,7 @@ interface SettingsProps {
   provider: AIProvider;
   onSetProvider: (provider: AIProvider) => void;
   apiKey: string;
+  isFromEnv?: boolean;
   onSaveApiKey: (key: string) => void;
   onClearApiKey: () => void;
   onTestConnection: () => Promise<void>;
@@ -39,6 +40,7 @@ export function Settings({
   provider,
   onSetProvider,
   apiKey,
+  isFromEnv,
   onSaveApiKey,
   onClearApiKey,
   onTestConnection,
@@ -159,8 +161,8 @@ export function Settings({
               <Key className="h-4 w-4 text-muted-foreground" />
               <h3 className="font-medium">{providerName} API Key</h3>
               {apiKey && (
-                <Badge variant="secondary" className="text-xs">
-                  已设置
+                <Badge variant={isFromEnv ? "outline" : "secondary"} className="text-xs">
+                  {isFromEnv ? '来自环境变量' : '已设置'}
                 </Badge>
               )}
             </div>

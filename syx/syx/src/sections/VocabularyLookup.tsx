@@ -20,11 +20,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import type { AIProvider } from '@/types';
 
 interface VocabularyLookupProps {
-  provider: AIProvider;
   apiKey: string;
+  generateText: (prompt: string) => Promise<string>;
   onAddVocabulary: (data: {
     word: string;
     englishDefinition: string;
@@ -63,8 +62,8 @@ const languages = [
 ];
 
 export function VocabularyLookup({
-  provider,
   apiKey,
+  generateText,
   onAddVocabulary,
   onAddCollection,
 }: VocabularyLookupProps) {
@@ -138,49 +137,7 @@ EXAMPLE1_TRANS: [chinese translation]
 EXAMPLE2: [second example sentence]
 EXAMPLE2_TRANS: [chinese translation]`;
 
-      let text = '';
-      if (provider === 'gemini') {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-        const geminiResult = await model.generateContent(prompt);
-        text = geminiResult.response.text();
-      } else {
-        const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-          }),
-        });
-
-        if (!res.ok) {
-          const payload = await res.json().catch(() => null);
-          const msg: string = payload?.error?.message || '';
-          const lowered = msg.toLowerCase();
-          if (lowered.includes('insufficient balance')) {
-            throw new Error('DeepSeek 余额不足，请先在 DeepSeek 控制台充值后再试');
-          }
-          if (res.status === 401 || lowered.includes('invalid') || lowered.includes('api key')) {
-            throw new Error('DeepSeek API Key 无效或权限不足，请检查 Key 是否正确');
-          }
-          if (res.status === 429 || lowered.includes('rate limit')) {
-            throw new Error('请求太频繁，请稍后再试');
-          }
-          throw new Error(msg ? `DeepSeek 请求失败：${msg}` : `DeepSeek 请求失败：${res.status} ${res.statusText}`);
-        }
-        const data = (await res.json()) as any;
-        const content = data?.choices?.[0]?.message?.content;
-        if (typeof content !== 'string' || !content.trim()) {
-          throw new Error('DeepSeek 返回内容为空');
-        }
-        text = content;
-      }
+      const text = await generateText(prompt);
 
       // 解析响应
       const definitionMatch = text.match(/DEFINITION:\s*([^]+?)(?=SYNONYMS:|$)/i);

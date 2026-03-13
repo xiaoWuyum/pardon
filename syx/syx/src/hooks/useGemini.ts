@@ -98,7 +98,13 @@ export function useGemini() {
       if (provider === 'gemini') {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: 0.7,
+          },
+        });
         return result.response.text();
       }
 
@@ -111,7 +117,8 @@ export function useGemini() {
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
+          temperature: 1.3,
+          max_tokens: 1024,
         }),
       });
 
@@ -159,21 +166,21 @@ export function useGemini() {
           prompt: getStylePrompt(styleId, customStyles),
         }));
 
-        const prompt = `You are an English language assistant helping a Chinese user learn English dialogues.
-
+        const prompt = 
+`You are a language assistant.
 Context:
 - Scene: ${scene}
 - Tag/Topic: ${tag}
-- User's question/situation: "${question}"
+- User's question: "${question}"
 
-Please provide ${styles.length} different responses in English for this situation, each with a different style:
+Please provide ${styles.length} different responses for this, each with a different style:
 ${stylesConfig.map((s, i) => `${i + 1}. ${s.prompt} (style: ${s.name})`).join('\n')}
 
 For each response, provide:
-1. The English response
+1. English response
 2. Chinese translation
 
-Format your answer exactly like this:
+Format answer exactly like this:
 ---
 STYLE: [style name]
 ENGLISH: [english response]

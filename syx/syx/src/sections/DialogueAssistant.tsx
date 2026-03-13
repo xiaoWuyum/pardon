@@ -79,8 +79,15 @@ export function DialogueAssistant({
   onDeleteCustomStyle,
 }: DialogueAssistantProps) {
   const [question, setQuestion] = useState('');
-  const [selectedStyles, setSelectedStyles] = useState<string[]>(['polite', 'casual']);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return ['casual'];
+    }
+    return ['polite', 'casual'];
+  });
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]);
+  const [showQuestionTranslation, setShowQuestionTranslation] = useState(true);
+  const [questionInTargetLanguage, setQuestionInTargetLanguage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [responses, setResponses] = useState<AIResponse[]>([]);
   const [collectionDialog, setCollectionDialog] = useState<{
@@ -171,6 +178,7 @@ export function DialogueAssistant({
 
     setIsLoading(true);
     setResponses([]);
+    setQuestionInTargetLanguage('');
 
     try {
       const styleConfigs = selectedStyles.map((styleId) => {
@@ -192,6 +200,13 @@ export function DialogueAssistant({
       const targetLangName = isEnglish ? selectedLanguage.prompt : selectedLanguage.name;
       const translationLang = isEnglish ? 'Chinese' : 'Chinese (中文)';
 
+      const questionTranslationInstruction = showQuestionTranslation
+        ? `First, translate the user's question/situation into a natural ${targetLangName} question.
+Output exactly one line:
+QUESTION: [translated question]
+`
+        : '';
+
       const prompt = `You are a language assistant helping a Chinese user learn ${targetLangName}.
 
 Context:
@@ -200,6 +215,7 @@ Context:
 - User's question/situation: "${question}"
 - Target language: ${targetLangName}
 
+${questionTranslationInstruction}
 Please provide ${selectedStyles.length} different responses in ${targetLangName} for this situation, each with a different style:
 ${styleConfigs.map((s, i) => `${i + 1}. ${s.prompt} (style: ${s.name})`).join('\n')}
 
@@ -219,9 +235,19 @@ Keep responses natural and appropriate for the context.`;
 
       const text = await generateText(prompt);
 
+      if (showQuestionTranslation) {
+        const questionLineMatch = text.match(/^\s*QUESTION:\s*(.+)\s*$/im);
+        if (questionLineMatch?.[1]) {
+          setQuestionInTargetLanguage(questionLineMatch[1].trim());
+        }
+      }
+
+      const firstSeparatorIndex = text.indexOf('---');
+      const textForParsing = firstSeparatorIndex >= 0 ? text.slice(firstSeparatorIndex) : text;
+
       // 解析响应
       const parsedResponses: AIResponse[] = [];
-      const blocks = text.split('---').filter((block) => block.trim());
+      const blocks = textForParsing.split('---').filter((block) => block.trim());
 
       for (let i = 0; i < blocks.length && i < selectedStyles.length; i++) {
         const block = blocks[i];
@@ -366,6 +392,20 @@ Keep responses natural and appropriate for the context.`;
                 添加风格
               </Button>
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="toggle-question-translation"
+                checked={showQuestionTranslation}
+                onCheckedChange={(checked) => setShowQuestionTranslation(Boolean(checked))}
+                className="h-4 w-4"
+              />
+              <label
+                htmlFor="toggle-question-translation"
+                className="text-sm text-muted-foreground cursor-pointer select-none"
+              >
+                先给出问法（怎么说）
+              </label>
+            </div>
             <div className="flex flex-wrap gap-2">
               {allStyles.map((style) => (
                 <div
@@ -438,6 +478,28 @@ Keep responses natural and appropriate for the context.`;
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {questionInTargetLanguage && (
+              <div className="mb-4 border rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline">{selectedLanguage.name} 问法</Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(questionInTargetLanguage);
+                        toast({ title: '已复制' });
+                      } catch {
+                        toast({ title: '复制失败', variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    复制
+                  </Button>
+                </div>
+                <p className="text-base font-medium">{questionInTargetLanguage}</p>
+              </div>
+            )}
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-4">
                 {responses.map((response) => (

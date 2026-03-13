@@ -1,10 +1,7 @@
 import type { AIProvider, AIResponse, CustomStyle } from '@/types';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useCallback, useState } from 'react';
 
-const PROVIDER_STORAGE_KEY = 'ai-provider';
-const GEMINI_API_KEY_STORAGE_KEY = 'gemini-api-key';
-const DEEPSEEK_API_KEY_STORAGE_KEY = 'deepseek-api-key';
+const MODEL_STORAGE_KEY = 'ai-model';
 
 const builtInStylePrompts: Record<string, string> = {
   polite: 'polite and courteous, respectful tone',
@@ -14,58 +11,20 @@ const builtInStylePrompts: Record<string, string> = {
 };
 
 export function useGemini() {
-  const [provider, setProviderState] = useState<AIProvider>(() => {
-    const stored = localStorage.getItem(PROVIDER_STORAGE_KEY);
-    if (stored === 'deepseek' || stored === 'gemini') {
-      return stored as AIProvider;
-    }
-    // 默认从环境变量读取，如果没有则默认为 deepseek
-    const envProvider = import.meta.env.VITE_AI_PROVIDER;
-    return (envProvider === 'gemini' ? 'gemini' : 'deepseek') as AIProvider;
-  });
-
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
-    return localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || import.meta.env.VITE_GEMINI_API_KEY || '';
-  });
-
-  const [deepseekApiKey, setDeepseekApiKey] = useState<string>(() => {
-    return localStorage.getItem(DEEPSEEK_API_KEY_STORAGE_KEY) || import.meta.env.VITE_DEEPSEEK_API_KEY || '';
+  const [model, setModelState] = useState<string>(() => {
+    const stored = localStorage.getItem(MODEL_STORAGE_KEY);
+    if (stored) return stored;
+    return import.meta.env.VITE_AI_MODEL || 'deepseek-chat';
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const setProvider = useCallback((next: AIProvider) => {
-    localStorage.setItem(PROVIDER_STORAGE_KEY, next);
-    setProviderState(next);
+  const setModel = useCallback((next: string) => {
+    localStorage.setItem(MODEL_STORAGE_KEY, next);
+    setModelState(next);
   }, []);
 
-  const apiKey = provider === 'gemini' ? geminiApiKey : deepseekApiKey;
-
-  const saveApiKey = useCallback(
-    (key: string, targetProvider: AIProvider = provider) => {
-      if (targetProvider === 'gemini') {
-        localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, key);
-        setGeminiApiKey(key);
-        return;
-      }
-      localStorage.setItem(DEEPSEEK_API_KEY_STORAGE_KEY, key);
-      setDeepseekApiKey(key);
-    },
-    [provider]
-  );
-
-  const clearApiKey = useCallback(
-    (targetProvider: AIProvider = provider) => {
-      if (targetProvider === 'gemini') {
-        localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
-        setGeminiApiKey('');
-        return;
-      }
-      localStorage.removeItem(DEEPSEEK_API_KEY_STORAGE_KEY);
-      setDeepseekApiKey('');
-    },
-    [provider]
-  );
+  const provider: AIProvider = model.startsWith('gemini-') ? 'gemini' : 'deepseek';
 
   const getStylePrompt = (styleId: string, customStyles: CustomStyle[]): string => {
     const customStyle = customStyles.find((s) => s.id === styleId);
@@ -91,34 +50,16 @@ export function useGemini() {
 
   const generateText = useCallback(
     async (prompt: string): Promise<string> => {
-      if (!apiKey) {
-        throw new Error('请先设置 API Key');
-      }
-
-      if (provider === 'gemini') {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-        const result = await model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            maxOutputTokens: 1024,
-            temperature: 0.7,
-          },
-        });
-        return result.response.text();
-      }
-
-      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      const res = await fetch('/api/ai', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 1.3,
-          max_tokens: 1024,
+          model,
+          prompt,
+          temperature: 0.7,
+          maxTokens: 1024,
         }),
       });
 
@@ -126,26 +67,20 @@ export function useGemini() {
         const payload = await res.json().catch(() => null);
         const msg: string = payload?.error?.message || '';
         const lowered = msg.toLowerCase();
-        if (lowered.includes('insufficient balance')) {
-          throw new Error('DeepSeek 余额不足，请先在 DeepSeek 控制台充值后再试');
-        }
-        if (res.status === 401 || lowered.includes('invalid') || lowered.includes('api key')) {
-          throw new Error('DeepSeek API Key 无效或权限不足，请检查 Key 是否正确');
-        }
         if (res.status === 429 || lowered.includes('rate limit')) {
           throw new Error('请求太频繁，请稍后再试');
         }
-        throw new Error(msg ? `DeepSeek 请求失败：${msg}` : `DeepSeek 请求失败：${res.status} ${res.statusText}`);
+        throw new Error(msg || `请求失败：${res.status} ${res.statusText}`);
       }
 
       const data = (await res.json()) as any;
-      const content = data?.choices?.[0]?.message?.content;
+      const content = data?.content;
       if (typeof content !== 'string' || !content.trim()) {
-        throw new Error('DeepSeek 返回内容为空');
+        throw new Error('返回内容为空');
       }
       return content;
     },
-    [apiKey, provider]
+    [model]
   );
 
   const generateDialogueResponses = useCallback(
@@ -299,28 +234,16 @@ EXAMPLE2_TRANS: [chinese translation]`;
   );
 
   const testConnection = useCallback(async (): Promise<void> => {
-    if (!apiKey) {
-      throw new Error('请先设置 API Key');
-    }
     const text = await generateText('Hello');
     if (!text.length) {
       throw new Error('响应为空');
     }
-  }, [apiKey, generateText]);
-
-  const isFromEnv = provider === 'gemini' 
-    ? !localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) && !!import.meta.env.VITE_GEMINI_API_KEY
-    : !localStorage.getItem(DEEPSEEK_API_KEY_STORAGE_KEY) && !!import.meta.env.VITE_DEEPSEEK_API_KEY;
+  }, [generateText]);
 
   return {
     provider,
-    setProvider,
-    apiKey,
-    isFromEnv,
-    geminiApiKey,
-    deepseekApiKey,
-    saveApiKey,
-    clearApiKey,
+    model,
+    setModel,
     isLoading,
     error,
     generateText,

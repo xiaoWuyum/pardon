@@ -19,7 +19,6 @@ import {
     Menu,
     MessageSquare,
     Settings,
-    XCircle,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
@@ -51,11 +50,8 @@ function App() {
 
   const { 
     provider, 
-    setProvider, 
-    apiKey, 
-    isFromEnv,
-    saveApiKey, 
-    clearApiKey, 
+    model,
+    setModel,
     testConnection,
     generateText 
   } = useGemini();
@@ -88,10 +84,6 @@ function App() {
 
 用户输入：${trimmed}`;
 
-        if (!apiKey) {
-          return suggestTagByHeuristic();
-        }
-
         try {
           const text = await generateText(prompt);
           return normalize(text.split('\n')[0] || '');
@@ -114,7 +106,7 @@ function App() {
 
       return { scene, tag };
     },
-    [addScene, addTag, apiKey, provider, selectedScene, state.scenes, state.tags]
+    [addScene, addTag, generateText, selectedScene, state.scenes, state.tags]
   );
 
   const handleAddCollection = (
@@ -146,6 +138,7 @@ function App() {
 
   const handleClearAllData = () => {
     localStorage.removeItem('english-learning-assistant-v2');
+    localStorage.removeItem('ai-model');
     localStorage.removeItem('gemini-api-key');
     localStorage.removeItem('deepseek-api-key');
     localStorage.removeItem('ai-provider');
@@ -165,7 +158,6 @@ function App() {
           <DialogueAssistant
             selectedScene={selectedScene}
             selectedTag={selectedTag}
-            apiKey={apiKey}
             generateText={generateText}
             customStyles={state.customStyles}
             onAutoSelectTag={autoSelectTag}
@@ -177,7 +169,6 @@ function App() {
       case 'vocabulary':
         return (
           <VocabularyLookup
-            apiKey={apiKey}
             generateText={generateText}
             onAddVocabulary={handleAddVocabulary}
             onAddCollection={handleAddCollection}
@@ -195,11 +186,8 @@ function App() {
         return (
           <SettingsPanel
             provider={provider}
-            onSetProvider={setProvider}
-            apiKey={apiKey}
-            isFromEnv={isFromEnv}
-            onSaveApiKey={saveApiKey}
-            onClearApiKey={clearApiKey}
+            model={model}
+            onSetModel={setModel}
             onTestConnection={testConnection}
             onClearAllData={handleClearAllData}
           />
@@ -265,21 +253,12 @@ function App() {
 
           {/* API 状态指示器 */}
           <div className="flex items-center gap-3">
-            {apiKey ? (
-              <Badge variant="secondary" className="gap-1.5">
-                <CheckCircle className="h-3 w-3 text-green-500" />
-                <span className="hidden sm:inline">
-                  {provider === 'deepseek' ? 'DeepSeek' : 'Gemini'} 已连接
-                </span>
-              </Badge>
-            ) : (
-              <Badge variant="destructive" className="gap-1.5">
-                <XCircle className="h-3 w-3" />
-                <span className="hidden sm:inline">
-                  未设置 {provider === 'deepseek' ? 'DeepSeek' : 'Gemini'} API
-                </span>
-              </Badge>
-            )}
+            <Badge variant="secondary" className="gap-1.5">
+              <CheckCircle className="h-3 w-3 text-green-500" />
+              <span className="hidden sm:inline">
+                {provider === 'deepseek' ? 'DeepSeek' : 'Gemini'} / {model}
+              </span>
+            </Badge>
 
             {/* 桌面端标签导航 */}
             <nav className="hidden md:flex items-center gap-1">

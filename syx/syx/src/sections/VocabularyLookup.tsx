@@ -22,7 +22,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 interface VocabularyLookupProps {
-  apiKey: string;
   generateText: (prompt: string) => Promise<string>;
   onAddVocabulary: (data: {
     word: string;
@@ -62,7 +61,6 @@ const languages = [
 ];
 
 export function VocabularyLookup({
-  apiKey,
   generateText,
   onAddVocabulary,
   onAddCollection,
@@ -86,7 +84,7 @@ export function VocabularyLookup({
       return 'API 配额已用完。免费版或试用额度可能有使用限制，请稍后再试或升级套餐。';
     }
     if (errorStr.includes('API key not valid') || errorStr.includes('invalid')) {
-      return 'API Key 无效，请检查设置中的 API Key 是否正确。';
+      return '服务端鉴权失败，请检查环境变量是否配置正确。';
     }
     if (errorStr.includes('429') || errorStr.includes('rate limit')) {
       return '请求太频繁，请稍后再试。';
@@ -105,15 +103,6 @@ export function VocabularyLookup({
       });
       return;
     }
-    if (!apiKey) {
-      toast({
-        title: '请先设置 API Key',
-        description: '点击右上角的设置按钮',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsLoading(true);
     setResult(null);
 
